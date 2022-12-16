@@ -16,7 +16,12 @@ class JATS extends \DOMDocument
 
 		$journalMeta = $xpath->query("//article/front/journal-meta");
 		foreach ($journalMeta as $journalMetaEntry) {
-			$origDocument->documentElement->removeChild($journalMetaEntry);
+			try {
+				$origDocument->documentElement->removeChild($journalMetaEntry);
+			}
+			catch (Exception $e) {
+				$e->getMessage();
+			}
 		}
 		$articleMeta = $xpath->query("//article/front/article-meta");
 		if (count($articleMeta) == 1) {
