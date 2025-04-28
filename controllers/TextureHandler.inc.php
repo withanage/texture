@@ -34,7 +34,7 @@ class TextureHandler extends Handler {
 		$this->_plugin = PluginRegistry::getPlugin('generic', TEXTURE_PLUGIN_NAME);
 		$this->addRoleAssignment(
 			array(ROLE_ID_MANAGER, ROLE_ID_SUB_EDITOR, ROLE_ID_ASSISTANT, ROLE_ID_REVIEWER, ROLE_ID_AUTHOR),
-			array('editor', 'export', 'json', 'extract', 'media', 'createGalleyForm', 'createGalley')
+			array('editor', 'export', 'json', 'extract', 'media', 'createGalleyForm', 'createGalley','createServiceFileForm')
 		);
 	}
 
@@ -600,7 +600,7 @@ class TextureHandler extends Handler {
 		$origDocument->documentElement->removeChild($body);
 
 		$manuscriptBody = $xpath->query("//article/body");
-		foreach ($manuscriptBody as $content) {
+		foreach ($manuscriptBody as$content) {
 			$node = $origDocument->importNode($content, true);
 			$origDocument->documentElement->appendChild($node);
 		}
@@ -679,6 +679,27 @@ class TextureHandler extends Handler {
 		header('Content-Length: ' . strlen($mediaFileContent));
 		return $mediaFileContent;
 
+	}
+
+	/**
+	 * @param $args
+	 * @param $request
+	 * @return JSONMessage
+	 */
+	public function createServiceFileForm($args, $request) {
+
+		import('plugins.generic.texture.controllers.grid.form.CreateServiceFileForm');
+		$serviceFileForm = new CreateServiceFileForm($request, $this->getPlugin(), $this->publication, $this->submission);
+
+		if ( $serviceFileForm->validate()) {
+			$serviceFileForm->readInputData();
+			$serviceFileForm->execute();
+
+		}
+		else {
+			$serviceFileForm->initData();
+			return new JSONMessage(true, $serviceFileForm->fetch($request));
+		}
 	}
 
 }

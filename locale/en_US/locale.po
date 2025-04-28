@@ -68,3 +68,21 @@ msgstr "Update Journal license"
 
 msgid "plugins.generic.texture.createGalley.createArticlelMetaHistory"
 msgstr "Update Article publication history"
+
+msgid "plugins.generic.texture.createServiceFile.upload"
+msgstr "Upload A file from a service"
+
+msgid "plugins.generic.texture.createServiceFile.file.name"
+msgstr "File name or file URL"
+
+msgid "plugins.generic.texture.createServiceFile.file.description"
+msgstr "Choose the path of the file or URL to upload"
+
+msgid "plugins.generic.texture.createServiceFile.orkg"
+msgstr "Open Research Knowledge Graph"
+
+msgid "plugins.generic.texture.createServiceFile.oai"
+msgstr "OJS OAI-PMH Interface"
+
+msgid "plugins.generic.texture.createServiceFile.add_file"
+msgstr "Add external File"

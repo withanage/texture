@@ -159,7 +159,7 @@ class JATS extends \DOMDocument
 				$copyrightYearNode = $origDocument->createElement('copyright-year', $copyrightYear);
 				$permissionNode->appendChild($copyrightYearNode);
 
-				$copyrightLicenseNode = $origDocument->createElement('copyright-license');
+				$copyrightLicenseNode = $origDocument->createElement('license');
 				$copyrightLicenseNode->setAttribute('license-type', 'open-access');
 				$copyrightLicenseNode->setAttribute('xlink:href', $licenseUrl);
 				$copyrightLicenseNode->setAttribute('xml:lang', 'en');
