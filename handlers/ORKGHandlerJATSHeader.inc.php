@@ -73,8 +73,6 @@ class ORKGHandlerJATSHeader
 		$license->addAttribute('license-type', 'open-access');
 		$license->addAttribute('xlink:href', self::LICENSE_URL);
 		$license->addAttribute('xml:lang', 'en');
-
-		$this->addInlineGraphicToLicense($license);
 	}
 
 	private function addInlineGraphicToLicense(SimpleXMLElement $license): void

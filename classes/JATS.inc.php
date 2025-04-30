@@ -1,10 +1,6 @@
 <?php
 
 
-use DAORegistry;
-use DOMDocument;
-use DOMXpath;
-use PKPString;
 
 class JATS extends \DOMDocument
 {
@@ -138,8 +134,11 @@ class JATS extends \DOMDocument
 
 		$xpath = new DOMXpath($origDocument);
 		$permissions = $xpath->query("//article/front/article-meta/permissions");
-		foreach ($permissions as $permission) {
-			$origDocument->documentElement->removeChild($permission);
+
+			foreach ($permissions as $permission) {
+				if($permission->parent)
+					$permission->parent->removeChild($permission);
+
 		}
 
 
