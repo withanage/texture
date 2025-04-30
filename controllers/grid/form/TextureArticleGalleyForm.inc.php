@@ -123,7 +123,12 @@ class TextureArticleGalleyForm extends Form
 				'assocType' => $sourceFile->getData('assocType'),
 				'assocId' => $sourceFile->getData('assocId'),
 				'fileStage' => SUBMISSION_FILE_PROOF,
-				'mimetype' => $sourceFile->getData('mimetype'), 'locale' => $sourceFile->getData('locale'), 'genreId' => $sourceFile->getData('genreId'), 'name' => $sourceFile->getData('name'), 'submissionId' => $this->getSubmission()->getId()]);
+				'mimetype' => $sourceFile->getData('mimetype'),
+				'locale' => $sourceFile->getData('locale'),
+				'genreId' => $sourceFile->getData('genreId'),
+				#'name' => $sourceFile->getData('name'),
+				'submissionId' => $this->getSubmission()->getId()
+			]);
 		$newSubmissionFile = Services::get('submissionFile')->add($newSubmissionFile, $request);
 		unlink($tmpFile);
 
