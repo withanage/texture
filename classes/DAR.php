@@ -7,7 +7,12 @@
  * @brief DAR Archive format
  */
 
+namespace APP\plugins\generic\texture\classes;
+
 use PKP\submission\SubmissionFile;
+use PKP\db\DAORegistry;
+use APP\facades\Repo;
+use APP\core\Services;
 
 class DAR {
 
@@ -21,7 +26,6 @@ class DAR {
 	 * @return array
 	 */
 	public function construct(DAR $dar, $request, $submissionFile): array {
-
 		$assets = array();
 		$manuscript = Services::get('file')->fs->read($submissionFile->getData('path'));
 		$manuscript = $dar->createManuscript($manuscript);
@@ -54,16 +58,16 @@ class DAR {
 
 
 	public function createManuscript($manuscript) {
-		$domImpl = new DOMImplementation();
+		$domImpl = new \DOMImplementation();
 		$dtd = $domImpl->createDocumentType("article", "-//NLM//DTD JATS (Z39.96) Journal Archiving and Interchange DTD v1.2 20190208//EN", "JATS-archivearticle1.dtd");
 		$editableManuscriptDom = $domImpl->createDocument("", "", $dtd);
 		$editableManuscriptDom->encoding = 'UTF-8';
 
 
-		$manuscriptXmlDom = new DOMDocument;
+		$manuscriptXmlDom = new \DOMDocument;
 		$manuscriptXmlDom->loadXML($manuscript);
 
-		$xpath = new DOMXpath($manuscriptXmlDom);
+		$xpath = new \DOMXpath($manuscriptXmlDom);
 
 
 		$editableManuscriptDom->article = $editableManuscriptDom->createElement('article');
@@ -117,8 +121,7 @@ class DAR {
 	 * @return mixed
 	 */
 	public function createManifest($manuscriptXml, &$assets) {
-
-		$dom = new DOMDocument();
+		$dom = new \DOMDocument();
 		if (!$dom->loadXML($manuscriptXml)) {
 			fatalError("Unable to load XML document content in DOM in order to generate manifest XML.");
 		}
@@ -177,7 +180,6 @@ class DAR {
 	 * @return array
 	 */
 	public function createMediaInfo($request, $assets) {
-
 		$infos = array();
 		$router = $request->getRouter();
 		$dispatcher = $router->getDispatcher();
@@ -185,17 +187,15 @@ class DAR {
 		$submissionFileId = $request->getUserVar('submissionFileId');
 		$stageId = $request->getUserVar('stageId');
 		$submissionId = $request->getUserVar('submissionId');
-		// build mapping to assets file paths
+		$submissionFiles = Repo::submissionFile()
+			->getCollector()
+			->filterBySubmissionIds([$submissionId])
+			->filterByFileStages([SUBMISSION_FILE_DEPENDENT])
+			->getMany(); 
 
-		$dependentFilesIterator = Services::get('submissionFile')->getMany([
-			'assocTypes' => [ASSOC_TYPE_SUBMISSION_FILE],
-			'assocIds' => [$submissionFileId],
-			'submissionIds' => [$submissionId],
-			'fileStages' => [SUBMISSION_FILE_DEPENDENT],
-			'includeDependentFiles' => true,
-		]);
 
-		foreach ($dependentFilesIterator as $asset) {
+
+		foreach ($submissionFiles as $asset) {
 			$url = $dispatcher->url($request, ROUTE_PAGE, null, 'texture', 'media', null, array(
 				'submissionId' => $submissionId,
 				'stageId' => $stageId,
@@ -214,9 +214,9 @@ class DAR {
 	}
 
 	/**
-	 * @param DOMDocument $dom
+	 * @param \DOMDocument $dom
 	 */
-	protected function createEmptyMetadata(DOMDocument $dom): void {
+	protected function createEmptyMetadata(\DOMDocument $dom): void {
 		$dom->front = $dom->createElement('front');
 		$dom->article->appendChild($dom->front);
 
@@ -240,7 +240,6 @@ class DAR {
 	 * @return array
 	 */
 	public function getDependentFilePaths($submissionId, $fileId): array {
-
 		$dependentFiles = Services::get('submissionFile')->getMany([
 			'assocTypes' => [ASSOC_TYPE_SUBMISSION_FILE],
 			'assocIds' => [$fileId],

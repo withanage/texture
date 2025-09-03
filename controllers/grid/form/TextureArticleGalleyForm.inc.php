@@ -13,6 +13,7 @@
  *
  * @brief Article galley editing form.
  */
+namespace APP\plugins\generic\texture;
 
 use PKP\form\Form;
 

@@ -13,11 +13,17 @@
  * @brief Substance JATS editor plugin
  *
  */
+namespace APP\plugins\generic\texture;
 
 use PKP\linkAction\LinkAction;
 use PKP\plugins\GenericPlugin;
 use PKP\linkAction\request\OpenWindowAction;
 use PKP\linkAction\request\PostAndRedirectAction;
+
+use PKP\plugins\Hook;
+use APP\facades\Repo;
+use PKP\core\Dispatcher;
+use PKP\core\PKPRequest;
 
 define('DAR_MANIFEST_FILE', 'manifest.xml');
 define('DAR_MANUSCRIPT_FILE', 'manuscript.xml');
@@ -53,8 +59,8 @@ class TexturePlugin extends GenericPlugin {
 		if (parent::register($category, $path, $mainContextId)) {
 			if ($this->getEnabled()) {
 				// Register callbacks.
-				HookRegistry::register('LoadHandler', array($this, 'callbackLoadHandler'));
-				HookRegistry::register('TemplateManager::fetch', array($this, 'templateFetchCallback'));
+				Hook::add('LoadHandler', array($this, 'callbackLoadHandler'));
+				Hook::add('TemplateManager::fetch', array($this, 'templateFetchCallback'));
 
 				$this->_registerTemplateResource();
 			}
@@ -105,13 +111,11 @@ class TexturePlugin extends GenericPlugin {
 			case 'texture/media':
 				define('HANDLER_CLASS', 'TextureHandler');
 				define('TEXTURE_PLUGIN_NAME', $this->getName());
-				$args[2] = $this->getPluginPath() . '/' . 'TextureHandler.inc.php';
-				break;
+				require_once($this->getPluginPath() . '/TextureHandler.php');
+				return true;
 		}
-
 		return false;
 	}
-
 
 	/**
 	 * Adds additional links to submission files grid row
@@ -270,3 +274,9 @@ class TexturePlugin extends GenericPlugin {
 
 	}
 }
+
+if (!PKP_STRICT_MODE) {
+    class_alias('APP\plugins\generic\texture\TexturePlugin', '\TexturePlugin');
+}
+
+
