@@ -2,7 +2,7 @@
 <!DOCTYPE version SYSTEM "../../../lib/pkp/dtd/pluginVersion.dtd">
 
 <!--
-  * version.xml
+  * plugins/generic/texture/version.xml
   *
   * Copyright (c) 2003-2022 Simon Fraser University
   * Copyright (c) 2003-2022 John Willinsky
@@ -15,7 +15,7 @@
 	<application>texture</application>
 	<type>plugins.generic</type>
 	<release>2.4.3.9</release>
-	<date>2022-09-21</date>
+	<date>2025-12-01</date>
 	<lazy-load>1</lazy-load>
 	<class>TexturePlugin</class>
 </version>

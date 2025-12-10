@@ -1,5 +1,21 @@
 <?php
 
+/**
+ * @file plugins/generic/texture/classes/handlers/ORKGFileHandler.php
+ *
+ * Copyright (c) 2025 Simon Fraser University
+ * Copyright (c) 2025 John Willinsky
+ * Distributed under the GNU GPL v2. For full terms see the file docs/COPYING.
+ *
+ * @class ORKGFileHandler
+ *
+ * @ingroup plugins_generic_texture
+ *
+ * @brief Texture editor plugin
+ */
+
+namespace APP\plugins\generic\texture\classes\handlers;
+
 import('plugins.generic.texture.handlers.ServiceFileHandler');
 import('plugins.generic.texture.handlers.ORKGHandlerJATSHeader');
 
@@ -9,31 +25,29 @@ class ORKGFileHandler extends ServiceFileHandler
 	private const MIME_TYPE = 'text/xml';
 	private string $fileType = 'xml';
 
-
 	public function setAdditionalFileMetadata(array &$metadata): void
 	{
 		$metadata['mimetype'] = self::MIME_TYPE;
 		$metadata['name'] = parent::getServiceFile() . '.' . $this->getFileTyle();
-
 	}
 
 	public function modifyContent(string &$content): void
 	{
 		import('plugins.generic.texture.handlers.ORKGHandlerJATSHeader');
+
+		import('plugins.generic.texture.classes.XMLAmpersandEscaper');
+		$content = XMLAmpersandEscaper::escapeAmpersands($content);
+
 		try {
 			$processor = new ORKGHandlerJATSHeader($content);
 			$content = $processor->process();
 		} catch (Exception $e) {
 			echo "Error: " . $e->getMessage();
 		}
-
-
-
 	}
 
 	public function cleanServiceFilePath(&$serviceFile): string
 	{
-
 		$serviceFile = trim($serviceFile);
 
 		if (empty($serviceFile)) {
@@ -82,8 +96,6 @@ class ORKGFileHandler extends ServiceFileHandler
 	{
 		return $this->fileType;
 	}
-
-
 
 	protected function validateDownloadedFile(string $filePath): void
 	{
