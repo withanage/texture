@@ -99,7 +99,6 @@ class TextureHandler extends Handler
     public function extract($args, $request)
     {
 
-        import('lib.pkp.classes.file.SubmissionFileManager');
         $user = $request->getUser();
         $zipType = $request->getUserVar("zipType");
         $submissionFile = $this->getAuthorizedContextObject(ASSOC_TYPE_SUBMISSION_FILE);
@@ -361,7 +360,8 @@ class TextureHandler extends Handler
         $manifestXml = $dar->createManifest($manuscriptXml, $assets);
 
         $submissionId = $request->getUserVar('submissionId');
-        $fileManager = $this->_getFileManager($context->getId(), $submissionFile->getId());
+        import('lib.pkp.classes.file.FileManager');
+        $fileManager = new FileManager();
         $assetsFilePaths = $dar->getDependentFilePaths($submissionId, $submissionFile->getId());
 
         $archivePath = tempnam('/tmp', 'texture-');
@@ -384,18 +384,6 @@ class TextureHandler extends Handler
         } else {
             fatalError('Creating archive with submission files failed!');
         }
-    }
-
-    /**
-     * return the application specific file manager.
-     * @param $contextId int the context for this manager.
-     * @param $submissionId int the submission id.
-     * @return SubmissionFileManager
-     */
-    function _getFileManager($contextId, $submissionId)
-    {
-
-        return new SubmissionFileManager($contextId, $submissionId);
     }
 
     /**
