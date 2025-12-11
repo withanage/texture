@@ -16,6 +16,19 @@
 
 namespace APP\plugins\generic\texture\classes\handlers;
 
+use APP\core\Application;
+use APP\core\Request;
+use APP\core\Services;
+use APP\publication\Publication;
+use APP\submission\Submission;
+use BadFunctionCallException;
+use CurlHandle;
+use InvalidArgumentException;
+use PKP\context\Context;
+use PKP\db\DAORegistry;
+use PKP\submissionFile\SubmissionFile;
+use RuntimeException;
+
 abstract class ServiceFileHandler
 {
 	private const GENRE_KEY = 'SUBMISSION';
@@ -43,7 +56,6 @@ abstract class ServiceFileHandler
 
 	/**
 	 * Creates a temporary file path.
-	 * @return string Path to the temporary file
 	 */
 	function createTempFilePath(): string
 	{
@@ -63,7 +75,7 @@ abstract class ServiceFileHandler
 	}
 
 	/**
-	 * Validates service file
+	 * Validates service file.
 	 * @throws InvalidArgumentException If service data is invalid
 	 */
 	abstract protected function validateServiceFileId(): void;
@@ -135,7 +147,7 @@ abstract class ServiceFileHandler
 
 		return [
 			'fileId' => $fileId,
-			'assocType' => ASSOC_TYPE_SUBMISSION_FILE,
+			'assocType' => Application::ASSOC_TYPE_SUBMISSION_FILE,
 			'genreId' => $genre->getId(),
 			'locale' => $this->getServiceFilelocale(),
 			'submissionId' => $this->submission->getId(),
@@ -274,19 +286,19 @@ abstract class ServiceFileHandler
 		$stage = null;
 		switch ($this->getStageId()) {
 			case 1:
-				$stage = SUBMISSION_FILE_SUBMISSION;
+				$stage = SubmissionFile::SUBMISSION_FILE_SUBMISSION;
 				break;
 			case 2:
-				$stage = SUBMISSION_FILE_INTERNAL_REVIEW_FILE;
+				$stage = SubmissionFile::SUBMISSION_FILE_INTERNAL_REVIEW_FILE;
 				break;
 			case 3:
-				$stage = SUBMISSION_FILE_INTERNAL_REVIEW_FILE;
+				$stage = SubmissionFile::SUBMISSION_FILE_INTERNAL_REVIEW_FILE;
 				break;
 			case 4:
-				$stage = SUBMISSION_FILE_COPYEDIT;
+				$stage = SubmissionFile::SUBMISSION_FILE_COPYEDIT;
 				break;
 			case 5:
-				$stage = SUBMISSION_FILE_PRODUCTION_READY;
+				$stage = SubmissionFile::SUBMISSION_FILE_PRODUCTION_READY;
 				break;
 		}
 		return $stage;

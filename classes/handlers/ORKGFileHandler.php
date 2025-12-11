@@ -16,8 +16,10 @@
 
 namespace APP\plugins\generic\texture\classes\handlers;
 
-import('plugins.generic.texture.handlers.ServiceFileHandler');
-import('plugins.generic.texture.handlers.ORKGHandlerJATSHeader');
+use APP\plugins\generic\texture\classes\XMLAmpersandEscaper;
+use Exception;
+use InvalidArgumentException;
+use RuntimeException;
 
 class ORKGFileHandler extends ServiceFileHandler
 {
@@ -33,9 +35,6 @@ class ORKGFileHandler extends ServiceFileHandler
 
 	public function modifyContent(string &$content): void
 	{
-		import('plugins.generic.texture.handlers.ORKGHandlerJATSHeader');
-
-		import('plugins.generic.texture.classes.XMLAmpersandEscaper');
 		$content = XMLAmpersandEscaper::escapeAmpersands($content);
 
 		try {

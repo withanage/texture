@@ -16,7 +16,16 @@
 
 namespace APP\plugins\generic\texture\classes\forms;
 
-import('lib.pkp.classes.form.Form');
+use APP\core\Request;
+use APP\plugins\generic\texture\classes\handlers\ORKGFileHandler;
+use APP\plugins\generic\texture\classes\handlers\ServiceFileHandler;
+use APP\plugins\generic\texture\TexturePlugin;
+use APP\publication\Publication;
+use APP\submission\Submission;
+use APP\template\TemplateManager;
+use PKP\form\Form;
+use PKP\form\validation\FormValidatorCSRF;
+use PKP\form\validation\FormValidatorPost;
 
 class CreateServiceFileForm extends Form
 {
@@ -28,7 +37,7 @@ class CreateServiceFileForm extends Form
 	private Submission $submission;
 	private array $listOfServices = ['plugins.generic.texture.createServiceFile.orkg'];
 
-	public function __construct(Request $request, Plugin $plugin, Publication $publication, Submission $submission)
+	public function __construct(Request $request, TexturePlugin $plugin, Publication $publication, Submission $submission)
 	{
 		parent::__construct($plugin->getTemplateResource('ServiceFile.tpl'));
 
@@ -36,7 +45,6 @@ class CreateServiceFileForm extends Form
 		$this->request = $request;
 		$this->submission = $submission;
 
-		AppLocale::requireComponents(LOCALE_COMPONENT_APP_EDITOR, LOCALE_COMPONENT_PKP_SUBMISSION);
 		$this->addCheck(new FormValidatorPost($this));
 		$this->addCheck(new FormValidatorCSRF($this));
 	}
@@ -45,7 +53,6 @@ class CreateServiceFileForm extends Form
 	{
 		switch ($this->getServiceType()) {
 			case 0:  // orkg
-				import('plugins.generic.texture.handlers.ORKGFileHandler');
 				$handler = new ORKGFileHandler();
 				break;
 			default:

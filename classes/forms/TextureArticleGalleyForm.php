@@ -18,22 +18,33 @@
 
 namespace APP\plugins\generic\texture\classes\forms;
 
-import('plugins.generic.texture.classes.JATS');
-import('lib.pkp.classes.form.Form');
+use APP\core\Application;
+use APP\core\Request;
+use APP\core\Services;
+use APP\plugins\generic\texture\classes\JATS;
+use APP\publication\Publication;
+use APP\submission\Submission;
+use APP\template\TemplateManager;
+use DOMDocument;
+use PKP\config\Config;
+use PKP\db\DAORegistry;
+use PKP\form\Form;
+use PKP\form\validation\FormValidator;
+use PKP\form\validation\FormValidatorCSRF;
+use PKP\form\validation\FormValidatorPost;
+use PKP\submissionFile\SubmissionFile;
 
 class TextureArticleGalleyForm extends Form
 {
-	public Submission $_submission;
-	public Publication $_publication;
+	public Submission $submission;
+	public Publication $publication;
 
 	function __construct($request, $plugin, $publication, $submission)
 	{
-		$this->_submission = $submission;
-		$this->_publication = $publication;
+		$this->submission = $submission;
+		$this->publication = $publication;
 
 		parent::__construct($plugin->getTemplateResource('TextureArticleGalley.tpl'));
-
-		AppLocale::requireComponents(LOCALE_COMPONENT_APP_EDITOR, LOCALE_COMPONENT_PKP_SUBMISSION);
 
 		$this->addCheck(new FormValidator($this, 'label', 'required', 'editor.issues.galleyLabelRequired'));
 		$this->addCheck(new FormValidatorPost($this));
@@ -54,12 +65,12 @@ class TextureArticleGalleyForm extends Form
 
 		$templateMgr->assign(array(
 			'supportedLocales' => $context->getSupportedSubmissionLocaleNames(),
-			'submissionId' => $this->_submission->getId(),
+			'submissionId' => $this->submission->getId(),
 			'stageId' => $request->getUserVar('stageId'),
 			'fileStage' => $request->getUserVar('fileStage'),
 			'submissionFileId' => $request->getUserVar('submissionFileId'),
-			'publicationId' => $this->_publication->getId(),
-			'datePublished' => $this->_publication->getData('datePublished'),
+			'publicationId' => $this->publication->getId(),
+			'datePublished' => $this->publication->getData('datePublished'),
 			'publisherInstitution' => $context->getData('publisherInstitution'),
 			'onlineIssn' => $context->getData('onlineIssn')
 
@@ -114,7 +125,7 @@ class TextureArticleGalleyForm extends Form
 				'fileId' => $newFileId,
 				'assocType' => $sourceFile->getData('assocType'),
 				'assocId' => $sourceFile->getData('assocId'),
-				'fileStage' => SUBMISSION_FILE_PROOF,
+				'fileStage' => SubmissionFile::SUBMISSION_FILE_PROOF,
 				'mimetype' => $sourceFile->getData('mimetype'),
 				'locale' => $sourceFile->getData('locale'),
 				'genreId' => $sourceFile->getData('genreId'),
@@ -126,14 +137,14 @@ class TextureArticleGalleyForm extends Form
 		unlink($tmpFile);
 
 		$articleGalley = $articleGalleyDao->newDataObject();
-		$articleGalley->setData('publicationId', $this->_publication->getId());
+		$articleGalley->setData('publicationId', $this->publication->getId());
 		$articleGalley->setLabel($this->getData('label'));
 		$articleGalley->setLocale($this->getData('galleyLocale'));
 		$articleGalley->setFileId($newSubmissionFile->getData('id'));
 		Services::get('galley')->add($articleGalley, $request);
 
 		// Get dependent files of the XML source file
-		$dependentFiles = Services::get('submissionFile')->getMany(['assocTypes' => [ASSOC_TYPE_SUBMISSION_FILE], 'assocIds' => [$sourceFile->getData('id')], 'submissionIds' => [$this->getSubmission()->getId()], 'fileStages' => [SUBMISSION_FILE_DEPENDENT], 'includeDependentFiles' => true,]);
+		$dependentFiles = Services::get('submissionFile')->getMany(['assocTypes' => [Application::ASSOC_TYPE_SUBMISSION_FILE], 'assocIds' => [$sourceFile->getData('id')], 'submissionIds' => [$this->getSubmission()->getId()], 'fileStages' => [SubmissionFile::SUBMISSION_FILE_DEPENDENT], 'includeDependentFiles' => true,]);
 
 		foreach ($dependentFiles as $dependentFile) {
 			$newDependentFileId = Services::get('file')->add($files_dir . $dependentFile->getData('path'), $files_dir . $submissionDir . DIRECTORY_SEPARATOR . uniqid() . '.xml');
@@ -143,7 +154,7 @@ class TextureArticleGalleyForm extends Form
 					'fileId' => $newDependentFileId,
 					'assocType' => $dependentFile->getData('assocType'),
 					'assocId' => $newSubmissionFile->getData('id'),
-					'fileStage' => SUBMISSION_FILE_DEPENDENT,
+					'fileStage' => SubmissionFile::SUBMISSION_FILE_DEPENDENT,
 					'mimetype' => $dependentFile->getData('mimetype'),
 					'locale' => $dependentFile->getData('locale'),
 					'genreId' => $dependentFile->getData('genreId'),
@@ -160,7 +171,7 @@ class TextureArticleGalleyForm extends Form
 
 	function getSubmission()
 	{
-		return $this->_submission;
+		return $this->submission;
 	}
 
 	public function getCopyrightYear(Request $request)
@@ -171,9 +182,9 @@ class TextureArticleGalleyForm extends Form
 				$copyrightYear = date('Y', strtotime($this->getPublication()->getData('datePublished')));
 				break;
 			case 'issue':
-				if ($this->_publication->getData('issueId')) {
+				if ($this->publication->getData('issueId')) {
 					$issueDao =& DAORegistry::getDAO('IssueDAO');
-					$issue = $issueDao->getBySubmissionId($this->_submission->getId());
+					$issue = $issueDao->getBySubmissionId($this->submission->getId());
 					if ($issue && $issue->getDatePublished()) {
 						$copyrightYear = date('Y', strtotime($issue->getDatePublished()));
 					}
@@ -186,6 +197,6 @@ class TextureArticleGalleyForm extends Form
 
 	public function getPublication(): ?Publication
 	{
-		return $this->_publication;
+		return $this->publication;
 	}
 }
