@@ -16,6 +16,9 @@
 
 namespace APP\plugins\generic\texture\classes\handlers;
 
+use RuntimeException;
+use SimpleXMLElement;
+
 class ORKGHandlerJATSHeader
 {
 	private SimpleXMLElement $contentDOM;

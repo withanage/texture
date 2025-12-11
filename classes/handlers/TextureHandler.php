@@ -16,35 +16,58 @@
 
 namespace APP\plugins\generic\texture\classes\handlers;
 
-import('classes.handler.Handler');
+use APP\core\Application;
+use APP\core\Services;
+use APP\handler\Handler;
+use APP\notification\Notification;
+use APP\notification\NotificationManager;
+use APP\plugins\generic\texture\classes\DAR;
+use APP\plugins\generic\texture\classes\forms\CreateServiceFileForm;
+use APP\plugins\generic\texture\classes\forms\TextureArticleGalleyForm;
+use APP\plugins\generic\texture\classes\XMLAmpersandEscaper;
+use APP\plugins\generic\texture\TexturePlugin;
+use APP\publication\Publication;
+use APP\submission\Submission;
+use APP\template\TemplateManager;
+use DOMDocument;
+use DOMXPath;
+use PKP\core\Core;
+use PKP\core\JSONMessage;
+use PKP\db\DAORegistry;
+use PKP\file\FileManager;
+use PKP\i18n\PKPLocale;
+use PKP\plugins\PluginRegistry;
+use PKP\security\authorization\WorkflowStageAccessPolicy;
+use PKP\security\Role;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use SubmissionFile;
+use ZipArchive;
 
 class TextureHandler extends Handler
 {
 	public Submission $submission;
 	public Publication $publication;
-	public MarkupPlugin $_plugin;
+	public TexturePlugin $plugin;
 
 	function __construct()
 	{
 		parent::__construct();
 
-		$this->_plugin = PluginRegistry::getPlugin('generic', TEXTURE_PLUGIN_NAME);
+		$this->plugin = PluginRegistry::getPlugin('generic', TEXTURE_PLUGIN_NAME);
 		$this->addRoleAssignment(
-			array(ROLE_ID_MANAGER, ROLE_ID_SUB_EDITOR, ROLE_ID_ASSISTANT, ROLE_ID_REVIEWER, ROLE_ID_AUTHOR),
+			TexturePlugin::AUTHORIZED_ROLES,
 			array('editor', 'export', 'json', 'extract', 'media', 'createGalleyForm', 'createGalley', 'createServiceFileForm')
 		);
 	}
 
-	//
-	// Overridden methods from Handler
-	//
 	/**
 	 * @copydoc PKPHandler::initialize()
 	 */
-	function initialize($request)
+	function initialize($request, $args = null)
 	{
 		parent::initialize($request);
-		$this->submission = $this->getAuthorizedContextObject(ASSOC_TYPE_SUBMISSION);
+		$this->submission = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_SUBMISSION);
 		$this->publication = $this->submission->getLatestPublication();
 		$this->setupTemplate($request);
 	}
@@ -54,45 +77,38 @@ class TextureHandler extends Handler
 	 */
 	function authorize($request, &$args, $roleAssignments)
 	{
-		import('lib.pkp.classes.security.authorization.WorkflowStageAccessPolicy');
 		$this->addPolicy(new WorkflowStageAccessPolicy($request, $args, $roleAssignments, 'submissionId', (int)$request->getUserVar('stageId')));
 		return parent::authorize($request, $args, $roleAssignments);
 	}
 
 	/**
-	 * Create galley form
-	 * @param $args array
-	 * @param $request PKPRequest
-	 * @return JSONMessage JSON object
+	 * Create galley form.
 	 */
 	public function createGalleyForm($args, $request)
 	{
-		import('plugins.generic.texture.controllers.grid.form.TextureArticleGalleyForm');
 		$galleyForm = new TextureArticleGalleyForm($request, $this->getPlugin(), $this->publication, $this->submission);
 
 		$galleyForm->initData();
+
 		return new JSONMessage(true, $galleyForm->fetch($request));
 	}
 
 	/**
 	 * Get the plugin.
-	 * @return TexuturePlugin
 	 */
 	function getPlugin()
 	{
-		return $this->_plugin;
+		return $this->plugin;
 	}
 
 	/**
-	 * Extracts a DAR Archive
-	 * @param $args
-	 * @param $request
+	 * Extract a DAR Archive.
 	 */
 	public function extract($args, $request)
 	{
 		$user = $request->getUser();
 		$zipType = $request->getUserVar("zipType");
-		$submissionFile = $this->getAuthorizedContextObject(ASSOC_TYPE_SUBMISSION_FILE);
+		$submissionFile = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_SUBMISSION_FILE);
 		$archivePath = '';//TextureHandler . inc . 'texture-' . $zipType . '-archive' . mt_rand();
 		$image_types = array('gif', 'jpg', 'jpeg', 'png', 'jpe');
 		$html_types = array('html');
@@ -108,9 +124,9 @@ class TextureHandler extends Handler
 			$genre = $genreDAO->getByKey('SUBMISSION', $submission->getData('contextId'));
 			$fileStage = $submissionFile->getFileStage();
 			$sourceFileId = $submissionFile->getData('fileId');
-			if ($zipType == TEXTURE_DAR_FILE_TYPE) {
+			if ($zipType == TexturePlugin::TEXTURE_DAR_FILE_TYPE) {
 				$manifestFileDom = new DOMDocument();
-				$darManifestFilePath = $archivePath . DIRECTORY_SEPARATOR . DAR_MANIFEST_FILE;
+				$darManifestFilePath = $archivePath . DIRECTORY_SEPARATOR . TexturePlugin::DAR_MANIFEST_FILE;
 				if (file_exists($darManifestFilePath)) {
 
 					$manifestFileDom->load($darManifestFilePath);
@@ -123,7 +139,7 @@ class TextureHandler extends Handler
 
 							$fileType = "text/xml";
 
-							$clientFileName = basename($submissionFile->getClientFileName(), TEXTURE_DAR_FILE_TYPE) . 'xml';
+							$clientFileName = basename($submissionFile->getClientFileName(), TexturePlugin::TEXTURE_DAR_FILE_TYPE) . 'xml';
 							$fileSize = filesize($darManuscriptFilePath);
 
 							$submissionFileDao = DAORegistry::getDAO('SubmissionFileDAO');
@@ -152,7 +168,7 @@ class TextureHandler extends Handler
 								$fileType = pathinfo($fileName, PATHINFO_EXTENSION);
 
 								$genreId = $this->_getGenreId($request, $fileType);
-								$this->_createDependentFile($genreId, $submission, $fileName, SUBMISSION_FILE_DEPENDENT, ASSOC_TYPE_SUBMISSION_FILE, true, $insertedSubmissionFile->getFileId(), $dependentFilePath, $request);
+								$this->_createDependentFile($genreId, $submission, $fileName, SubmissionFile::SUBMISSION_FILE_DEPENDENT, Application::ASSOC_TYPE_SUBMISSION_FILE, true, $insertedSubmissionFile->getFileId(), $dependentFilePath, $request);
 							}
 						} else {
 							return $this->removeFilesAndNotify($zip, $archivePath, $user, __('plugins.generic.texture.notification.noManuscript'));
@@ -162,7 +178,7 @@ class TextureHandler extends Handler
 				} else {
 					return $this->removeFilesAndNotify($zip, $archivePath, $user, __('plugins.generic.texture.notification.noManifest'));
 				}
-			} elseif ($zipType == TEXTURE_ZIP_FILE_TYPE) {
+			} elseif ($zipType == TexturePlugin::TEXTURE_ZIP_FILE_TYPE) {
 
 				$archiveContent = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($archivePath), RecursiveIteratorIterator::SELF_FIRST);
 
@@ -183,15 +199,15 @@ class TextureHandler extends Handler
 					$htmlFile = $productionFiles[0];
 					$fileType = "text/html";
 
-					$clientFileName = basename($submissionFile->getClientFileName(), TEXTURE_ZIP_FILE_TYPE) . 'html';
+					$clientFileName = basename($submissionFile->getClientFileName(), TexturePlugin::TEXTURE_ZIP_FILE_TYPE) . 'html';
 					$fileSize = $htmlFile->getSize();
 					$filePath = $htmlFile->getPathname();
 
 					$submissionFileDao = DAORegistry::getDAO('SubmissionFileDAO');
-					$newSubmissionFile = $submissionFileDao->newDataObjectByGenreId($genreId);
+					$newSubmissionFile = $submissionFileDao->newDataObjectByGenreId($genre->getId());
 					$newSubmissionFile->setSubmissionId($submission->getId());
 					$newSubmissionFile->setSubmissionLocale($submission->getLocale());
-					$newSubmissionFile->setGenreId($genreId);
+					$newSubmissionFile->setGenreId($genre->getId());
 					$newSubmissionFile->setFileStage($fileStage);
 					$newSubmissionFile->setDateUploaded(Core::getCurrentDate());
 					$newSubmissionFile->setDateModified(Core::getCurrentDate());
@@ -206,7 +222,7 @@ class TextureHandler extends Handler
 
 					foreach ($dependentFiles as $asset) {
 						$genreId = $this->_getGenreId($request, $asset->getType());
-						$this->_createDependentFile($genreId, $submission, $asset->getFileName(), SUBMISSION_FILE_DEPENDENT, ASSOC_TYPE_SUBMISSION_FILE, true, $insertedSubmissionFile->getFileId(), $asset->getPathname(), $request);
+						$this->_createDependentFile($genreId, $submission, $asset->getFileName(), SubmissionFile::SUBMISSION_FILE_DEPENDENT, Application::ASSOC_TYPE_SUBMISSION_FILE, true, $insertedSubmissionFile->getFileId(), $asset->getPathname(), $request);
 					}
 				} else {
 					return $this->removeFilesAndNotify($zip, $archivePath, $user, __('plugins.generic.texture.notification.noValidHTMLFile'));
@@ -216,13 +232,11 @@ class TextureHandler extends Handler
 			return $this->removeFilesAndNotify($zip, $archivePath, $user, __('plugins.generic.texture.notification.noValidDarFile'));
 		}
 
-		return $this->removeFilesAndNotify($zip, $archivePath, $user, __('plugins.generic.texture.notification.extracted'), NOTIFICATION_TYPE_SUCCESS, true);
+		return $this->removeFilesAndNotify($zip, $archivePath, $user, __('plugins.generic.texture.notification.extracted'), Notification::NOTIFICATION_TYPE_SUCCESS, true);
 	}
 
 	/**
-	 * @param $genres
-	 * @param $extension
-	 * @return mixed
+	 * Get genre id.
 	 */
 	private function _getGenreId($request, $extension)
 	{
@@ -249,18 +263,7 @@ class TextureHandler extends Handler
 	}
 
 	/**
-	 * Creates a dependent file
-	 *
-	 * @param $genreId  int
-	 * @param $submission Submission
-	 * @param $fileName string
-	 * @param bool $fileStage
-	 * @param bool $assocType
-	 * @param bool $deletePath
-	 * @param bool $assocId
-	 * @param bool $filePath string
-	 * @param $request
-	 * @return void
+	 * Creates a dependent file.
 	 */
 	protected function _createDependentFile($genreId, $submission, $fileName, $fileStage = false, $assocType = false, $deletePath = false, $assocId = false, $filePath = false, $request)
 	{
@@ -282,16 +285,9 @@ class TextureHandler extends Handler
 	}
 
 	/**
-	 * Remove files and notify
-	 * @param ZipArchive $zip
-	 * @param string $archivePath
-	 * @param $user
-	 * @param  $message
-	 * @param $errorType
-	 * @param bool $status
-	 * @return JSONMessage
+	 * Remove files and notify.
 	 */
-	private function removeFilesAndNotify(ZipArchive $zip, string $archivePath, $user, $message, $errorType = NOTIFICATION_TYPE_ERROR, $status = False): JSONMessage
+	private function removeFilesAndNotify(ZipArchive $zip, string $archivePath, $user, $message, $errorType = Notification::NOTIFICATION_TYPE_ERROR, $status = False): JSONMessage
 	{
 		$notificationMgr = new NotificationManager();
 		$zip->close();
@@ -323,25 +319,20 @@ class TextureHandler extends Handler
 	}
 
 	/**
-	 * Exports a DAR Archive
-	 * @param $args
-	 * @param $request PKPRequest
-	 * @return
+	 * Export a DAR Archive.
 	 */
 	public function export($args, $request)
 	{
-		import('plugins.generic.texture.classes.DAR');
 		$dar = new DAR();
 		$assets = array();
 
 		$context = $request->getContext();
-		$submissionFile = $this->getAuthorizedContextObject(ASSOC_TYPE_SUBMISSION_FILE);
+		$submissionFile = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_SUBMISSION_FILE);
 		$filePath = $submissionFile->getData('path');
 		$manuscriptXml = file_get_contents($filePath);
 		$manifestXml = $dar->createManifest($manuscriptXml, $assets);
 
 		$submissionId = $request->getUserVar('submissionId');
-		import('lib.pkp.classes.file.FileManager');
 		$fileManager = new FileManager();
 		$assetsFilePaths = $dar->getDependentFilePaths($submissionId, $submissionFile->getId());
 
@@ -349,9 +340,9 @@ class TextureHandler extends Handler
 		if (self::zipFunctional()) {
 			$zip = new ZipArchive();
 
-			if ($zip->open($archivePath, ZIPARCHIVE::CREATE) == true) {
-				$zip->addFile($filePath, DAR_MANUSCRIPT_FILE);
-				$zip->addFromString(DAR_MANIFEST_FILE, $manifestXml);
+			if ($zip->open($archivePath, ZIPARCHIVE::CREATE)) {
+				$zip->addFile($filePath, TexturePlugin::DAR_MANUSCRIPT_FILE);
+				$zip->addFromString(TexturePlugin::DAR_MANIFEST_FILE, $manifestXml);
 				foreach ($assetsFilePaths as $name => $path) {
 					$zip->addFile($path, $name);
 				}
@@ -377,13 +368,10 @@ class TextureHandler extends Handler
 	}
 
 	/**
-	 * @param $args
-	 * @param $request PKPRequest
-	 * @return JSONMessage
+	 * Create galley.
 	 */
 	public function createGalley($args, $request)
 	{
-		import('plugins.generic.texture.controllers.grid.form.TextureArticleGalleyForm');
 		$galleyForm = new TextureArticleGalleyForm($request, $this->getPlugin(), $this->publication, $this->submission);
 		$galleyForm->readInputData();
 
@@ -391,7 +379,7 @@ class TextureHandler extends Handler
 			$galleyForm->execute();
 			return $request->redirectUrlJson($request->getDispatcher()->url(
 				$request,
-				ROUTE_PAGE,
+				Application::ROUTE_PAGE,
 				null,
 				'workflow',
 				'access',
@@ -407,11 +395,7 @@ class TextureHandler extends Handler
 	}
 
 	/**
-	 * Display substance editor
-	 *
-	 * @param $args array
-	 * @param $request PKPRequest
-	 * @return string
+	 * Display substance editor.
 	 */
 	public function editor($args, $request)
 	{
@@ -421,8 +405,8 @@ class TextureHandler extends Handler
 		if (!$submissionId || !$stageId || !$submissionFileId) {
 			fatalError('Invalid request');
 		}
-		$submission = $this->getAuthorizedContextObject(ASSOC_TYPE_SUBMISSION);
-		$editorTemplateFile = method_exists($this->_plugin, 'getTemplateResource') ? $this->_plugin->getTemplateResource('editor.tpl') : ($this->_plugin->getTemplateResourceName() . ':templates/editor.tpl');
+		$submission = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_SUBMISSION);
+		$editorTemplateFile = method_exists($this->plugin, 'getTemplateResource') ? $this->plugin->getTemplateResource('editor.tpl') : ($this->plugin->getTemplateResourceName() . ':templates/editor.tpl');
 		$router = $request->getRouter();
 		$documentUrl = $router->url(
 			$request,
@@ -437,30 +421,24 @@ class TextureHandler extends Handler
 			)
 		);
 
-		AppLocale::requireComponents(LOCALE_COMPONENT_APP_COMMON, LOCALE_COMPONENT_PKP_MANAGER);
 		$templateMgr = TemplateManager::getManager($request);
 		$publication = $submission->getCurrentPublication();
 		$title = $publication->getLocalizedData('title') ?? __('plugins.generic.texture.name');
 
 		$templateMgr->assign(array(
 			'documentUrl' => $documentUrl,
-			'textureUrl' => $this->_plugin->getTextureUrl($request),
-			'texturePluginUrl' => $this->_plugin->getPluginUrl($request),
+			'textureUrl' => $this->plugin->getTextureUrl($request),
+			'texturePluginUrl' => $this->plugin->getPluginUrl($request),
 			'title' => $title
 		));
 		return $templateMgr->fetch($editorTemplateFile);
 	}
 
 	/**
-	 * fetch json archive
-	 *
-	 * @param $args array
-	 * @param $request PKPRequest
-	 * @return JSONMessage
+	 * Fetch JSON archive.
 	 */
 	public function json($args, $request)
 	{
-		import('plugins.generic.texture.classes.DAR');
 		$dar = new DAR();
 
 		$submissionFileId = (int)$request->getUserVar('submissionFileId');
@@ -482,10 +460,10 @@ class TextureHandler extends Handler
 			$media = (array)json_decode($postData);
 			if (!empty($media)) {
 				$dependentFilesIterator = Services::get('submissionFile')->getMany([
-					'assocTypes' => [ASSOC_TYPE_SUBMISSION_FILE],
+					'assocTypes' => [Application::ASSOC_TYPE_SUBMISSION_FILE],
 					'assocIds' => [$submissionFileId],
 					'submissionIds' => [$submissionId],
-					'fileStages' => [SUBMISSION_FILE_DEPENDENT],
+					'fileStages' => [SubmissionFile::SUBMISSION_FILE_DEPENDENT],
 					'includeDependentFiles' => true,
 				]);
 				foreach ($dependentFilesIterator as $dependentFile) {
@@ -501,7 +479,7 @@ class TextureHandler extends Handler
 		}
 
 		if ($_SERVER["REQUEST_METHOD"] === "GET") {
-			$mediaBlob = $dar->construct($dar, $request, $submissionFile);
+			$mediaBlob = $dar->createDarJson($dar, $request, $submissionFile);
 			header('Content-Type: application/json');
 
 			return json_encode($mediaBlob, JSON_UNESCAPED_SLASHES);
@@ -509,14 +487,13 @@ class TextureHandler extends Handler
 			$postData = file_get_contents('php://input');
 
 			if (!empty($postData)) {
-				$submission = $this->getAuthorizedContextObject(ASSOC_TYPE_SUBMISSION);
+				$submission = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_SUBMISSION);
 				$postDataJson = json_decode($postData);
 				$resources = (isset($postDataJson->archive) && isset($postDataJson->archive->resources)) ? (array)$postDataJson->archive->resources : [];
 				//todo extract media correctly
 				$media = isset($postDataJson->media) ? (array)$postDataJson->media : [];
 
 				if (!empty($media) && array_key_exists("data", $media)) {
-					import('lib.pkp.classes.file.FileManager');
 					$fileManager = new FileManager();
 					$extension = $fileManager->parseFileExtension($media["fileName"]);
 
@@ -529,7 +506,6 @@ class TextureHandler extends Handler
 					$tempMediaFile = tempnam(sys_get_temp_dir(), 'texture');
 					file_put_contents($tempMediaFile, $mediaBlob);
 
-					import('lib.pkp.classes.file.FileManager');
 					$fileManager = new FileManager();
 					$extension = $fileManager->parseFileExtension($media['fileName']);
 					$submissionDir = Services::get('submissionFile')->getSubmissionDir($context->getData('id'), $submission->getData('id'));
@@ -541,13 +517,13 @@ class TextureHandler extends Handler
 					$newSubmissionFile->setData('name', array_fill_keys(array_keys($formLocales), $media["fileName"]));
 					$newSubmissionFile->setData('submissionId', $submission->getData('id'));
 					$newSubmissionFile->setData('uploaderUserId', $request->getUser()->getId());
-					$newSubmissionFile->setData('assocType', ASSOC_TYPE_SUBMISSION_FILE);
+					$newSubmissionFile->setData('assocType', Application::ASSOC_TYPE_SUBMISSION_FILE);
 					$newSubmissionFile->setData('assocId', $submissionFile->getData('id'));
 					$newSubmissionFile->setData('genreId', $this->_getGenreId($request, $extension));
-					$newSubmissionFile->setData('fileStage', SUBMISSION_FILE_DEPENDENT);
+					$newSubmissionFile->setData('fileStage', SubmissionFile::SUBMISSION_FILE_DEPENDENT);
 
 					Services::get('submissionFile')->add($newSubmissionFile, $request);
-				} elseif (!empty($resources) && isset($resources[DAR_MANUSCRIPT_FILE]) && is_object($resources[DAR_MANUSCRIPT_FILE])) {
+				} elseif (!empty($resources) && isset($resources[TexturePlugin::DAR_MANUSCRIPT_FILE]) && is_object($resources[TexturePlugin::DAR_MANUSCRIPT_FILE])) {
 					$this->updateManuscriptFile($request, $resources, $submission, $submissionFile);
 				} else {
 					return new JSONMessage(false);
@@ -561,17 +537,12 @@ class TextureHandler extends Handler
 	}
 
 	/**
-	 * Update manuscript XML file
-	 * @param $request
-	 * @param $resources  array
-	 * @param $submission Article
-	 * @param $submissionFile SubmissionFile
-	 * @return SubmissionFile
+	 * Update manuscript XML file.
 	 */
 	protected function updateManuscriptFile($request, $resources, $submission, $submissionFile)
 	{
 		$modifiedDocument = new DOMDocument('1.0', 'utf-8');
-		$modifiedData = $resources[DAR_MANUSCRIPT_FILE]->data;
+		$modifiedData = $resources[TexturePlugin::DAR_MANUSCRIPT_FILE]->data;
 		$context = $request->getContext();
 
 		// write metada back from  original file
@@ -580,7 +551,6 @@ class TextureHandler extends Handler
 
 		$manuscriptXml = Services::get('file')->fs->read($submissionFile->getData('path'));
 		$origDocument = new DOMDocument('1.0', 'utf-8');
-		import('plugins.generic.texture.classes.XMLAmpersandEscaper');
 		$modifiedData = XMLAmpersandEscaper::escapeAmpersands($modifiedData);
 		$origDocument->loadXML($manuscriptXml);
 
@@ -604,7 +574,6 @@ class TextureHandler extends Handler
 
 		$tmpfname = tempnam(sys_get_temp_dir(), 'texture');
 		file_put_contents($tmpfname, $origDocument->saveXML());
-		import('lib.pkp.classes.file.FileManager');
 		$fileManager = new FileManager();
 		$extension = $fileManager->parseFileExtension($submissionFile->getData('path'));
 		$submissionDir = Services::get('submissionFile')->getSubmissionDir($context->getData('id'), $submission->getData('id'));
@@ -618,12 +587,7 @@ class TextureHandler extends Handler
 	}
 
 	/**
-	 * display images attached to XML document
-	 *
-	 * @param $args array
-	 * @param $request PKPRequest
-	 *
-	 * @return void
+	 * Display images attached to XML document.
 	 */
 	public function media($args, $request)
 	{
@@ -638,12 +602,11 @@ class TextureHandler extends Handler
 			fatalError('Invalid request');
 		}
 
-		import('lib.pkp.classes.submission.SubmissionFile'); // Constants
 		$dependentFiles = Services::get('submissionFile')->getMany([
-			'assocTypes' => [ASSOC_TYPE_SUBMISSION_FILE],
+			'assocTypes' => [Application::ASSOC_TYPE_SUBMISSION_FILE],
 			'assocIds' => [$submissionFile->getData('id')],
 			'submissionIds' => [$submissionFile->getData('submissionId')],
-			'fileStages' => [SUBMISSION_FILE_DEPENDENT],
+			'fileStages' => [SubmissionFile::SUBMISSION_FILE_DEPENDENT],
 			'includeDependentFiles' => true,
 		]);
 
@@ -667,19 +630,16 @@ class TextureHandler extends Handler
 	}
 
 	/**
-	 * @param $args
-	 * @param $request
-	 * @return JSONMessage
+	 * Create service file form.
 	 */
 	public function createServiceFileForm($args, $request)
 	{
-		import('plugins.generic.texture.controllers.grid.form.CreateServiceFileForm');
 		$serviceFileForm = new CreateServiceFileForm($request, $this->getPlugin(), $this->publication, $this->submission);
 
 		if ($serviceFileForm->validate()) {
 			$serviceFileForm->readInputData();
 			$serviceFileForm->execute();
-
+			return new JSONMessage(true);
 		} else {
 			$serviceFileForm->initData();
 			return new JSONMessage(true, $serviceFileForm->fetch($request));

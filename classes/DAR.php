@@ -16,17 +16,20 @@
 
 namespace APP\plugins\generic\texture\classes;
 
+use APP\core\Application;
+use APP\core\Services;
+use APP\plugins\generic\texture\TexturePlugin;
+use DOMDocument;
+use DOMImplementation;
+use DOMXPath;
+use PKP\submissionFile\SubmissionFile;
+
 class DAR
 {
 	/**
-	 * creates a DAR JSON file
-	 *
-	 * @param DAR $dar
-	 * @param $request
-	 * @param $submissionFile
-	 * @return array
+	 * Creates a DAR JSON file.
 	 */
-	public function construct(DAR $dar, $request, $submissionFile): array
+	public function createDarJson(DAR $dar, $request, $submissionFile): array
 	{
 		$assets = array();
 		$manuscript = Services::get('file')->fs->read($submissionFile->getData('path'));
@@ -36,14 +39,14 @@ class DAR
 		$mediaInfos = $dar->createMediaInfo($request, $assets);
 
 		$resources = array(
-			DAR_MANIFEST_FILE => array(
+			TexturePlugin::DAR_MANIFEST_FILE => array(
 				'encoding' => 'utf8',
 				'data' => $contents,
 				'size' => strlen($contents),
 				'createdAt' => 0,
 				'updatedAt' => 0,
 			),
-			DAR_MANUSCRIPT_FILE => array(
+			TexturePlugin::DAR_MANUSCRIPT_FILE => array(
 				'encoding' => 'utf8',
 				'data' => $manuscript,
 				'size' => strlen($manuscript),
@@ -58,6 +61,9 @@ class DAR
 		return $mediaBlob;
 	}
 
+	/**
+	 * Create manuscript.
+	 */
 	public function createManuscript($manuscript)
 	{
 		$domImpl = new DOMImplementation();
@@ -113,11 +119,7 @@ class DAR
 	}
 
 	/**
-	 * build DAR_MANIFEST_FILE from xml document
-	 *
-	 * @param $document string raw XML
-	 * @param $assets array list of figure metadata
-	 * @return mixed
+	 * Build TexturePlugin::DAR_MANIFEST_FILE from XML document.
 	 */
 	public function createManifest($manuscriptXml, &$assets)
 	{
@@ -173,11 +175,7 @@ class DAR
 	}
 
 	/**
-	 * Build media info
-	 *
-	 * @param $request PKPRquest
-	 * @param $assets array
-	 * @return array
+	 * Build media info.
 	 */
 	public function createMediaInfo($request, $assets)
 	{
@@ -191,15 +189,15 @@ class DAR
 		// build mapping to assets file paths
 
 		$dependentFilesIterator = Services::get('submissionFile')->getMany([
-			'assocTypes' => [ASSOC_TYPE_SUBMISSION_FILE],
+			'assocTypes' => [Application::ASSOC_TYPE_SUBMISSION_FILE],
 			'assocIds' => [$submissionFileId],
 			'submissionIds' => [$submissionId],
-			'fileStages' => [SUBMISSION_FILE_DEPENDENT],
+			'fileStages' => [SubmissionFile::SUBMISSION_FILE_DEPENDENT],
 			'includeDependentFiles' => true,
 		]);
 
 		foreach ($dependentFilesIterator as $asset) {
-			$url = $dispatcher->url($request, ROUTE_PAGE, null, 'texture', 'media', null, array(
+			$url = $dispatcher->url($request, Application::ROUTE_PAGE, null, 'texture', 'media', null, array(
 				'submissionId' => $submissionId,
 				'stageId' => $stageId,
 				'assocId' => $submissionFileId,
@@ -218,7 +216,7 @@ class DAR
 	}
 
 	/**
-	 * @param DOMDocument $dom
+	 * Create empty metadata.
 	 */
 	protected function createEmptyMetadata(DOMDocument $dom): void
 	{
@@ -239,18 +237,15 @@ class DAR
 	}
 
 	/**
-	 * @param $submissionId
-	 * @param $fileId
-	 * @return array
+	 * Get dependent file paths.
 	 */
 	public function getDependentFilePaths($submissionId, $fileId): array
 	{
-		import('lib.pkp.classes.submission.SubmissionFile'); // Constants
 		$dependentFiles = Services::get('submissionFile')->getMany([
-			'assocTypes' => [ASSOC_TYPE_SUBMISSION_FILE],
+			'assocTypes' => [Application::ASSOC_TYPE_SUBMISSION_FILE],
 			'assocIds' => [$fileId],
 			'submissionIds' => [$submissionId],
-			'fileStages' => [SUBMISSION_FILE_DEPENDENT],
+			'fileStages' => [SubmissionFile::SUBMISSION_FILE_DEPENDENT],
 			'includeDependentFiles' => true,
 		]);
 

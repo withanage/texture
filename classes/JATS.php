@@ -16,7 +16,15 @@
 
 namespace APP\plugins\generic\texture\classes;
 
-class JATS extends \DOMDocument
+use APP\submission\Submission;
+use DOMDocument;
+use DOMElement;
+use DOMXPath;
+use Exception;
+use PKP\core\PKPString;
+use PKP\db\DAORegistry;
+
+class JATS extends DOMDocument
 {
 	public static function getJournalMeta(DOMDocument $origDocument, $context): void
 	{
@@ -27,7 +35,7 @@ class JATS extends \DOMDocument
 			try {
 				$origDocument->documentElement->removeChild($journalMetaEntry);
 			} catch (Exception $e) {
-				$e->getMessage();
+				error_log($e->getMessage());
 			}
 		}
 		$articleMeta = $xpath->query("//article/front/article-meta");
