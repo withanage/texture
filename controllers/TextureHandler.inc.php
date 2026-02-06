@@ -36,7 +36,7 @@ class TextureHandler extends Handler
         $this->_plugin = PluginRegistry::getPlugin('generic', TEXTURE_PLUGIN_NAME);
         $this->addRoleAssignment(
             array(ROLE_ID_MANAGER, ROLE_ID_SUB_EDITOR, ROLE_ID_ASSISTANT, ROLE_ID_REVIEWER, ROLE_ID_AUTHOR),
-            array('editor', 'export', 'json', 'extract', 'media', 'createGalleyForm', 'createGalley', 'createServiceFileForm')
+            array('editor', 'export', 'json', 'extract', 'media')
         );
     }
 
@@ -63,22 +63,6 @@ class TextureHandler extends Handler
         import('lib.pkp.classes.security.authorization.WorkflowStageAccessPolicy');
         $this->addPolicy(new WorkflowStageAccessPolicy($request, $args, $roleAssignments, 'submissionId', (int) $request->getUserVar('stageId')));
         return parent::authorize($request, $args, $roleAssignments);
-    }
-
-    /**
-     * Create galley form
-     * @param $args array
-     * @param $request PKPRequest
-     * @return JSONMessage JSON object
-     */
-    public function createGalleyForm($args, $request)
-    {
-
-        import('plugins.generic.texture.controllers.grid.form.TextureArticleGalleyForm');
-        $galleyForm = new TextureArticleGalleyForm($request, $this->getPlugin(), $this->publication, $this->submission);
-
-        $galleyForm->initData();
-        return new JSONMessage(true, $galleyForm->fetch($request));
     }
 
     /**
@@ -397,37 +381,6 @@ class TextureHandler extends Handler
     }
 
     /**
-     * @param $args
-     * @param $request PKPRequest
-     * @return JSONMessage
-     */
-    public function createGalley($args, $request)
-    {
-
-        import('plugins.generic.texture.controllers.grid.form.TextureArticleGalleyForm');
-        $galleyForm = new TextureArticleGalleyForm($request, $this->getPlugin(), $this->publication, $this->submission);
-        $galleyForm->readInputData();
-
-        if ($galleyForm->validate()) {
-            $galleyForm->execute();
-            return $request->redirectUrlJson($request->getDispatcher()->url(
-                $request,
-                ROUTE_PAGE,
-                null,
-                'workflow',
-                'access',
-                null,
-                array(
-                    'submissionId' => $request->getUserVar('submissionId'),
-                    'stageId' => $request->getUserVar('stageId')
-                )
-            ));
-        }
-
-        return new JSONMessage(false);
-    }
-
-    /**
      * Display substance editor
      *
      * @param $args array
@@ -698,27 +651,6 @@ class TextureHandler extends Handler
         header('Content-Length: ' . strlen($mediaFileContent));
         return $mediaFileContent;
 
-    }
-
-    /**
-     * @param $args
-     * @param $request
-     * @return JSONMessage
-     */
-    public function createServiceFileForm($args, $request)
-    {
-
-        import('plugins.generic.texture.controllers.grid.form.CreateServiceFileForm');
-        $serviceFileForm = new CreateServiceFileForm($request, $this->getPlugin(), $this->publication, $this->submission);
-
-        if ($serviceFileForm->validate()) {
-            $serviceFileForm->readInputData();
-            $serviceFileForm->execute();
-
-        } else {
-            $serviceFileForm->initData();
-            return new JSONMessage(true, $serviceFileForm->fetch($request));
-        }
     }
 
 }
