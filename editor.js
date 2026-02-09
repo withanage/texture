@@ -21,13 +21,13 @@
 	});
 
 	class OJSTextureStorage extends substanceTexture.HttpStorageClient {
-		write (archiveId, data, cb) {
+		write(archiveId, data, cb) {
 			var url = this.apiUrl;
 			if (archiveId) {
 				url = url + '/' + archiveId;
 			}
 
-			function _createImages () {
+			function _createImages() {
 				substance.forEach(data.resources, (record, filePath) => {
 					if (record.encoding === 'blob') {
 						var binaries = new FileReader();
@@ -49,7 +49,6 @@
 							}).catch(err => {
 								cb(err);
 							});
-
 						};
 						binaries.readAsDataURL(record.data);
 					}
@@ -65,7 +64,7 @@
 				});
 			}
 
-			function _deleteImage (op) {
+			function _deleteImage(op) {
 				if (op.type === 'delete') {
 					if (op.val) {
 						if (op.val.type === 'graphic' || op.val.type === 'supplementary-file') {
@@ -84,14 +83,13 @@
 										cb(err);
 									});
 								}
-
 							}
 						}
 					}
 				}
 			}
 
-			function _deleteImages () {
+			function _deleteImages() {
 				if (data) {
 					if (data.diff) {
 						if (data.diff) {
@@ -114,13 +112,11 @@
 
 			_createImages();
 			_deleteImages();
-
 		}
-
 	}
 
 	class OJSTextureEditor extends substanceTexture.TextureWebApp {
-		_getStorage (storageType) {
+		_getStorage(storageType) {
 			var storage = super._getStorage(storageType);
 			return new OJSTextureStorage(this.props.storageUrl);
 		}

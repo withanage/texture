@@ -16,49 +16,56 @@
 
 namespace APP\plugins\generic\texture\classes;
 
+use APP\core\Application;
+use APP\core\Services;
+use APP\facades\Repo;
+use APP\plugins\generic\texture\TexturePlugin;
+use DOMDocument;
+use DOMImplementation;
+use DOMXPath;
+use PKP\submissionFile\SubmissionFile;
+
 class DAR
 {
 	/**
-	 * creates a DAR JSON file
-	 *
-	 * @param DAR $dar
-	 * @param $request
-	 * @param $submissionFile
-	 * @return array
+	 * Creates a DAR JSON file.
 	 */
-	public function construct(DAR $dar, $request, $submissionFile): array
+	public function createDarJson(DAR $dar, $request, $submissionFile): array
 	{
-		$assets = array();
+		$assets = [];
 		$manuscript = Services::get('file')->fs->read($submissionFile->getData('path'));
 		$manuscript = $dar->createManuscript($manuscript);
 
 		$contents = $dar->createManifest($manuscript, $assets);
 		$mediaInfos = $dar->createMediaInfo($request, $assets);
 
-		$resources = array(
-			DAR_MANIFEST_FILE => array(
+		$resources = [
+			TexturePlugin::DAR_MANIFEST_FILE => [
 				'encoding' => 'utf8',
 				'data' => $contents,
 				'size' => strlen($contents),
 				'createdAt' => 0,
-				'updatedAt' => 0,
-			),
-			DAR_MANUSCRIPT_FILE => array(
+				'updatedAt' => 0
+			],
+			TexturePlugin::DAR_MANUSCRIPT_FILE => [
 				'encoding' => 'utf8',
 				'data' => $manuscript,
 				'size' => strlen($manuscript),
 				'createdAt' => 0,
-				'updatedAt' => 0,
-			),
-		);
-		$mediaBlob = array(
+				'updatedAt' => 0
+			],
+		];
+		$mediaBlob = [
 			'version' => 1,
 			'resources' => array_merge($resources, $mediaInfos)
-		);
+		];
 		return $mediaBlob;
 	}
 
-	public function createManuscript($manuscript)
+	/**
+	 * Create manuscript.
+	 */
+	public function createManuscript($manuscript): false|string
 	{
 		$domImpl = new DOMImplementation();
 		$dtd = $domImpl->createDocumentType("article", "-//NLM//DTD JATS (Z39.96) Journal Archiving and Interchange DTD v1.2 20190208//EN", "JATS-archivearticle1.dtd");
@@ -95,7 +102,7 @@ class DAR
 			$editableManuscriptDom->documentElement->appendChild($node);
 		}
 
-		$refTypes = array("mixed-citation", "element-citation");
+		$refTypes = ["mixed-citation", "element-citation"];
 		foreach ($refTypes as $ref) {
 			foreach ($xpath->query("/article/back/ref-list/ref/" . $ref . "") as $content) {
 				if (empty($content->getAttribute("publication-type"))) {
@@ -113,21 +120,17 @@ class DAR
 	}
 
 	/**
-	 * build DAR_MANIFEST_FILE from xml document
-	 *
-	 * @param $document string raw XML
-	 * @param $assets array list of figure metadata
-	 * @return mixed
+	 * Build TexturePlugin::DAR_MANIFEST_FILE from XML document.
 	 */
 	public function createManifest($manuscriptXml, &$assets)
 	{
 		$dom = new DOMDocument();
 		if (!$dom->loadXML($manuscriptXml)) {
-			fatalError("Unable to load XML document content in DOM in order to generate manifest XML.");
+			exit("Unable to load XML document content in DOM in order to generate manifest XML.");
 		}
 
 		$k = 0;
-		$assets = array();
+		$assets = [];
 		$figElements = $dom->getElementsByTagName('fig');
 		foreach ($figElements as $figure) {
 			$pos = $k + 1;
@@ -152,11 +155,11 @@ class DAR
 				$figGraphPath = $graphic->item(0)->getAttribute('xlink:href');
 
 				// save assets
-				$assets[] = array(
+				$assets[] = [
 					'id' => $figId,
 					'type' => 'image/jpg',
 					'path' => $figGraphPath,
-				);
+				];
 			}
 			$k++;
 		}
@@ -173,15 +176,11 @@ class DAR
 	}
 
 	/**
-	 * Build media info
-	 *
-	 * @param $request PKPRquest
-	 * @param $assets array
-	 * @return array
+	 * Build media info.
 	 */
-	public function createMediaInfo($request, $assets)
+	public function createMediaInfo($request, $assets): array
 	{
-		$infos = array();
+		$infos = [];
 		$router = $request->getRouter();
 		$dispatcher = $router->getDispatcher();
 
@@ -190,27 +189,26 @@ class DAR
 		$submissionId = $request->getUserVar('submissionId');
 		// build mapping to assets file paths
 
-		$dependentFilesIterator = Services::get('submissionFile')->getMany([
-			'assocTypes' => [ASSOC_TYPE_SUBMISSION_FILE],
-			'assocIds' => [$submissionFileId],
-			'submissionIds' => [$submissionId],
-			'fileStages' => [SUBMISSION_FILE_DEPENDENT],
-			'includeDependentFiles' => true,
-		]);
+		$dependentFilesIterator = Repo::submissionFile()->getCollector()
+			->filterByAssoc(Application::ASSOC_TYPE_SUBMISSION_FILE, [$submissionFileId])
+			->filterBySubmissionIds([$submissionId])
+			->filterByFileStages([SubmissionFile::SUBMISSION_FILE_DEPENDENT])
+			->includeDependentFiles()
+			->getMany();
 
-		foreach ($dependentFilesIterator as $asset) {
-			$url = $dispatcher->url($request, ROUTE_PAGE, null, 'texture', 'media', null, array(
-				'submissionId' => $submissionId,
-				'stageId' => $stageId,
-				'assocId' => $submissionFileId,
-				'fileId' => $asset->getData('fileId')
+		foreach ($dependentFilesIterator as $dependentFile) {
+			$url = $dispatcher->url($request, Application::ROUTE_PAGE, null, 'texture', 'media', null,
+				[
+					'submissionId' => $submissionId,
+					'stageId' => $stageId,
+					'assocId' => $submissionFileId,
+					'fileId' => $dependentFile->getData('fileId')
+				]);
 
-			));
-
-			$infos[$asset->getLocalizedData('name')] = array(
+			$infos[$dependentFile->getLocalizedData('name')] = [
 				'encoding' => 'url',
 				'data' => $url
-			);
+			];
 
 		}
 
@@ -218,7 +216,7 @@ class DAR
 	}
 
 	/**
-	 * @param DOMDocument $dom
+	 * Create empty metadata.
 	 */
 	protected function createEmptyMetadata(DOMDocument $dom): void
 	{
@@ -239,25 +237,23 @@ class DAR
 	}
 
 	/**
-	 * @param $submissionId
-	 * @param $fileId
-	 * @return array
+	 * Get dependent file paths.
 	 */
 	public function getDependentFilePaths($submissionId, $fileId): array
 	{
-		import('lib.pkp.classes.submission.SubmissionFile'); // Constants
-		$dependentFiles = Services::get('submissionFile')->getMany([
-			'assocTypes' => [ASSOC_TYPE_SUBMISSION_FILE],
-			'assocIds' => [$fileId],
-			'submissionIds' => [$submissionId],
-			'fileStages' => [SUBMISSION_FILE_DEPENDENT],
-			'includeDependentFiles' => true,
-		]);
+		$dependentFiles = Repo::submissionFile()->getCollector()
+			->filterByAssoc(Application::ASSOC_TYPE_SUBMISSION_FILE, [$fileId])
+			->filterBySubmissionIds([$submissionId])
+			->filterByFileStages([SubmissionFile::SUBMISSION_FILE_DEPENDENT])
+			->includeDependentFiles()
+			->getMany();
 
-		$assetsFilePaths = array();
+		$assetsFilePaths = [];
+
 		foreach ($dependentFiles as $dFile) {
 			$assetsFilePaths[$dFile->getOriginalFileName()] = $dFile->getFilePath();
 		}
+
 		return $assetsFilePaths;
 	}
 }
