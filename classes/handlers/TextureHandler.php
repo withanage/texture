@@ -33,7 +33,7 @@ use PKP\db\DAORegistry;
 use PKP\file\FileManager;
 use PKP\security\authorization\WorkflowStageAccessPolicy;
 use PKP\submission\GenreDAO;
-use SubmissionFile;
+use PKP\submissionFile\SubmissionFile;
 
 class TextureHandler extends Handler
 {
@@ -174,7 +174,7 @@ class TextureHandler extends Handler
 				$fileManager = new FileManager();
 				$extension = $fileManager->parseFileExtension($media['fileName']);
 				$submissionDir = Repo::submissionFile()->getSubmissionDir($request->getContext()->getData('id'), $this->submission->getId());
-				$fileId = Services::get('file')->add($tempMediaFile, $submissionDir . '/' . uniqid() . '.' . $extension);
+				$fileId = Services::get('file')->add($tempMediaFile, $submissionDir . '/' . bin2hex(random_bytes(32)) . '.' . $extension);
 				unlink($tempMediaFile);
 
 				$allowedLocales = $request->getContext()->getData('supportedSubmissionLocales');
