@@ -16,6 +16,8 @@
 
 namespace APP\plugins\generic\texture\classes;
 
+use DOMDocument;
+
 class XMLAmpersandEscaper
 {
 	private const UNESCAPED_AMPERSAND_PATTERN = '/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/';

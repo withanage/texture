@@ -1,7 +1,7 @@
 <?php
 
 /**
- * @file plugins/generic/texture/TexturePlugin.inc.php
+ * @file plugins/generic/texture/TexturePlugin.php
  *
  * Copyright (c) 2003-2025 Simon Fraser University
  * Copyright (c) 2003-2025 John Willinsky
@@ -16,286 +16,91 @@
 
 namespace APP\plugins\generic\texture;
 
-import('lib.pkp.classes.plugins.GenericPlugin');
-
-define('DAR_MANIFEST_FILE', 'manifest.xml');
-define('DAR_MANUSCRIPT_FILE', 'manuscript.xml');
-define('TEXTURE_DAR_FILE_TYPE', 'dar');
-define('TEXTURE_ZIP_FILE_TYPE', 'zip');
-define('TEXTURE_HTML_FILE_TYPE', 'html');
+use APP\core\Application;
+use APP\core\Request;
+use APP\plugins\generic\texture\classes\handlers\TextureHandler;
+use APP\template\TemplateManager;
+use PKP\plugins\GenericPlugin;
+use PKP\plugins\Hook;
+use PKP\security\Role;
 
 class TexturePlugin extends GenericPlugin
 {
+	public const PLUGIN_URL = 'texture';
+
+	public const DAR_MANIFEST_FILE = 'manifest.xml';
+	public const DAR_MANUSCRIPT_FILE = 'manuscript.xml';
+
+	public const FILE_TYPE_DAR = 'dar';
+	public const FILE_TYPE_ZIP = 'zip';
+	public const FILE_TYPE_HTML = 'html';
+
+	public const AUTHORIZED_ROLES = [
+		Role::ROLE_ID_MANAGER,
+		Role::ROLE_ID_SUB_EDITOR,
+		Role::ROLE_ID_ASSISTANT,
+		Role::ROLE_ID_REVIEWER,
+		Role::ROLE_ID_AUTHOR
+	];
+
 	/**
 	 * @copydoc Plugin::register()
 	 */
-	function register($category, $path, $mainContextId = null)
+	function register($category, $path, $mainContextId = null): bool
 	{
 		if (parent::register($category, $path, $mainContextId)) {
 			if ($this->getEnabled()) {
-				// Register callbacks.
+				Hook::add('LoadHandler', $this->setPageHandler(...));
 
-				HookRegistry::register('editorsubmissiondetailsfilesgridhandler::initfeatures', [$this, 'addActionsToFileGrid']);
-				HookRegistry::register('editorreviewfilesgridhandler::initfeatures', [$this, 'addActionsToFileGrid']);
-				HookRegistry::register('copyeditfilesgridhandler::initfeatures', [$this, 'addActionsToFileGrid']);
-				HookRegistry::register('productionreadyfilesgridhandler::initfeatures', [$this, 'addActionsToFileGrid']);
-				HookRegistry::register('LoadHandler', array($this, 'callbackLoadHandler'));
-				HookRegistry::register('TemplateManager::fetch', array($this, 'templateFetchCallback'));
+				$request = Application::get()->getRequest();
+				$templateMgr = TemplateManager::getManager($request);
 
-				$this->_registerTemplateResource();
+				$userRoleIds = array_map(fn($role) => $role->getId(), $request->getUser()?->getRoles($request->getContext()?->getId()));
+				if (!empty($userRoleIds) && !empty(array_intersect($userRoleIds, TexturePlugin::AUTHORIZED_ROLES))) {
+					$this->addResources($templateMgr, $request);
+				}
 			}
 			return true;
 		}
 		return false;
 	}
 
-	function addActionsToFileGrid()
-	{
-		import('lib.pkp.classes.linkAction.request.AjaxModal');
-		$request = Application::get()->getRequest();
-		$dispatcher = $request->getDispatcher();
-		$request->getRouter()->getHandler()->addAction(
-			new LinkAction(
-				'services_add_file',
-				new AjaxModal(
-					$dispatcher->url($request, ROUTE_PAGE, null, 'texture', 'createServiceFileForm', null, $request->getUserVars()),
-					__('plugins.generic.texture.createServiceFile.upload'),
-					'modals_services_add_file'
-				),
-				__('plugins.generic.texture.createServiceFile.add_file'),
-				''
-			)
-		);
-	}
-
 	/**
-	 * Get texture editor URL
-	 * @param $request PKPRequest
-	 * @return string
-	 */
-	function getTextureUrl($request)
-	{
-		return $this->getPluginUrl($request) . '/texture';
-	}
-
-	/**
-	 * Get plugin URL
-	 * @param $request PKPRequest
-	 * @return string
-	 */
-	function getPluginUrl($request)
-	{
-		return $request->getBaseUrl() . '/' . $this->getPluginPath();
-	}
-
-	/**
-	 * @param $hookName string The name of the invoked hook
-	 * @param $args
-	 * @return bool
+	 * Callback load handler.
 	 * @see PKPPageRouter::route()
 	 */
-	public function callbackLoadHandler($hookName, $args)
+	public function setPageHandler($hookName, $args): bool
 	{
-		$page = $args[0];
-		$op = $args[1];
+		$page =& $args[0];
+		$handler =& $args[3];
 
-		switch ("$page/$op") {
-			case 'texture/createGalley':
-			case 'texture/editor':
-			case 'texture/export':
-			case 'texture/extract':
-			case 'texture/json':
-			case 'texture/save':
-			case 'texture/createGalleyForm':
-			case 'texture/createServiceFileForm':
-			case 'texture/media':
-				define('HANDLER_CLASS', 'TextureHandler');
-				define('TEXTURE_PLUGIN_NAME', $this->getName());
-				$args[2] = $this->getPluginPath() . DIRECTORY_SEPARATOR . 'controllers' . DIRECTORY_SEPARATOR . 'TextureHandler.inc.php';
-				break;
+		if ($this->getEnabled() && $page === self::PLUGIN_URL) {
+			$handler = new TextureHandler($this);
+			return true;
 		}
-
 		return false;
 	}
 
 	/**
-	 * Adds additional links to submission files grid row
-	 * @param $hookName string The name of the invoked hook
-	 * @param $params array Hook parameters
+	 * Add resources
 	 */
-	public function templateFetchCallback($hookName, $params)
+	public function addResources(TemplateManager $templateMgr, Request $request): void
 	{
-		$request = $this->getRequest();
-		$router = $request->getRouter();
-		$dispatcher = $router->getDispatcher();
-
-		$templateMgr = $params[0];
-		$resourceName = $params[1];
-		if ($resourceName == 'controllers/grid/gridRow.tpl') {
-			$row = $templateMgr->getTemplateVars('row');
-			$data = $row->getData();
-			if (is_array($data) && (isset($data['submissionFile']))) {
-				$submissionFile = $data['submissionFile'];
-				$fileExtension = strtolower($submissionFile->getData('mimetype'));
-
-				// get stage ID
-				$stageId = (int)$request->getUserVar('stageId');
-				$fileStage = SUBMISSION_FILE_PRODUCTION_READY;
-
-				if (strtolower($fileExtension) == 'text/xml') {
-					import('lib.pkp.classes.linkAction.request.OpenWindowAction');
-					$this->_editWithTextureAction($row, $dispatcher, $request, $submissionFile, $stageId);
-					$this->_createGalleyAction($row, $dispatcher, $request, $submissionFile, $stageId, $fileStage);
-					#$this->_exportAction($row, $dispatcher, $request, $submissionFile, $stageId, $fileStage);
-				} elseif (strtolower($fileExtension) == TEXTURE_DAR_FILE_TYPE) {
-					//	$this->_extractAction($row, $dispatcher, $request, $submissionFile, $stageId, $fileStage, TEXTURE_DAR_FILE_TYPE);
-				} elseif (strtolower($fileExtension) == TEXTURE_ZIP_FILE_TYPE) {
-					//	$this->_extractAction($row, $dispatcher, $request, $submissionFile, $stageId, $fileStage, TEXTURE_ZIP_FILE_TYPE);
-				} elseif (strtolower($fileExtension) == TEXTURE_HTML_FILE_TYPE) {
-					import('lib.pkp.classes.linkAction.request.OpenWindowAction');
-					$this->_createGalleyAction($row, $dispatcher, $request, $submissionFile, $stageId, $fileStage);
-				}
-			}
-		}
-	}
-
-	/**
-	 * exports a dar archive
-	 * @param $row SubmissionFilesGridRow
-	 * @param Dispatcher $dispatcher
-	 * @param PKPRequest $request
-	 * @param $submissionFile SubmissionFile
-	 * @param int $stageId
-	 * @param int $fileStage
-	 */
-	private function _exportAction($row, Dispatcher $dispatcher, PKPRequest $request, $submissionFile, int $stageId, int $fileStage): void
-	{
-		$row->addAction(new LinkAction(
-			'texture_export',
-			new OpenWindowAction(
-				$dispatcher->url(
-					$request,
-					ROUTE_PAGE,
-					null,
-					'texture',
-					'export',
-					null,
-					array(
-						'submissionId' => $submissionFile->getData('submissionId'),
-						'submissionFileId' => $submissionFile->getData('id'),
-						'stageId' => $stageId
-					)
-				)
-			),
-			__('plugins.generic.texture.links.exportDarArchive'),
-			null
-		));
-	}
-
-	/**
-	 * extracts a dar archive
-	 * @param $row SubmissionFilesGridRow
-	 * @param Dispatcher $dispatcher
-	 * @param PKPRequest $request
-	 * @param $submissionFile SubmissionFile
-	 * @param int $stageId
-	 * @param int $fileStage
-	 * @param $zipType
-	 */
-	private function _extractAction($row, Dispatcher $dispatcher, PKPRequest $request, $submissionFile, int $stageId, int $fileStage, $zipType): void
-	{
-		$stageId = (int)$request->getUserVar('stageId');
-		$zipLabel = ($zipType == TEXTURE_DAR_FILE_TYPE) ? 'plugins.generic.texture.links.extractDarArchive' : 'plugins.generic.texture.links.extractZipArchive';
-
-		$actionArgs = array(
-			'submissionId' => $submissionFile->getData('submissionId'),
-			'submissionFileId' => $submissionFile->getData('id'),
-			'stageId' => $stageId,
-			'zipType' => $zipType
+		$templateMgr->addJavaScript(
+			'TexturePluginJs',
+			"{$request->getBaseUrl()}/{$this->getPluginPath()}/public/build/build.iife.js",
+			[
+				'inline' => false,
+				'contexts' => ['backend'],
+				'priority' => TemplateManager::STYLE_SEQUENCE_LAST
+			]
 		);
-
-		$path = $dispatcher->url($request, ROUTE_PAGE, null, 'texture', 'extract', null, $actionArgs);
-		$pathRedirect = $dispatcher->url($request, ROUTE_PAGE, null, 'workflow', 'access', $actionArgs);
-		import('lib.pkp.classes.linkAction.request.PostAndRedirectAction');
-		$row->addAction(new LinkAction(
-			'texture_import',
-			new PostAndRedirectAction($path, $pathRedirect),
-			__($zipLabel),
-			null
-		));
-	}
-
-	/**
-	 * Adds edit with Texture action to files grid
-	 * @param $row SubmissionFilesGridRow
-	 * @param Dispatcher $dispatcher
-	 * @param PKPRequest $request
-	 * @param $submissionFile SubmissionFile
-	 * @param int $stageId
-	 */
-	private function _editWithTextureAction($row, Dispatcher $dispatcher, PKPRequest $request, $submissionFile, int $stageId): void
-	{
-		$row->addAction(new LinkAction(
-			'texture_editor',
-			new OpenWindowAction(
-				$dispatcher->url(
-					$request,
-					ROUTE_PAGE,
-					null,
-					'texture',
-					'editor',
-					null,
-					array(
-						'submissionId' => $submissionFile->getData('submissionId'),
-						'submissionFileId' => $submissionFile->getData('id'),
-						'stageId' => $stageId
-					)
-				)
-			),
-			__('plugins.generic.texture.links.editWithTexture'),
-			null
-		));
-	}
-
-	/**
-	 * Adds create galley action to files grid
-	 * @param $row SubmissionFilesGridRow
-	 * @param Dispatcher $dispatcher
-	 * @param PKPRequest $request
-	 * @param $submissionFile SubmissionFile
-	 * @param int $stageId
-	 */
-	private function _createGalleyAction($row, Dispatcher $dispatcher, PKPRequest $request, $submissionFile, int $stageId, int $fileStage): void
-	{
-		$actionArgs = array(
-			'submissionId' => $submissionFile->getData('submissionId'),
-			'stageId' => $stageId,
-			'fileStage' => $fileStage,
-			'submissionFileId' => $submissionFile->getData('id')
-		);
-		$row->addAction(new LinkAction(
-			'createGalleyForm',
-			new AjaxModal(
-				$dispatcher->url(
-					$request,
-					ROUTE_PAGE,
-					null,
-					'texture',
-					'createGalleyForm',
-					null,
-					$actionArgs
-				),
-				__('submission.layout.newGalley')
-			),
-			__('plugins.generic.texture.links.createGalley'),
-			null
-		));
 	}
 
 	/**
 	 * @copydoc Plugin::getDisplayName()
 	 */
-	function getDisplayName()
+	public function getDisplayName(): string
 	{
 		return __('plugins.generic.texture.displayName');
 	}
@@ -303,8 +108,13 @@ class TexturePlugin extends GenericPlugin
 	/**
 	 * @copydoc Plugin::getDescription()
 	 */
-	function getDescription()
+	public function getDescription(): string
 	{
 		return __('plugins.generic.texture.description');
 	}
+}
+
+// For backwards compatibility -- expect this to be removed approx. OJS/OMP/OPS 3.6
+if (!PKP_STRICT_MODE) {
+	class_alias('\APP\plugins\generic\texture\TexturePlugin', '\TexturePlugin');
 }
