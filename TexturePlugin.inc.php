@@ -55,10 +55,6 @@ class TexturePlugin extends GenericPlugin
             if ($this->getEnabled()) {
                 // Register callbacks.
 
-                HookRegistry::register('editorsubmissiondetailsfilesgridhandler::initfeatures', [$this, 'addActionsToFileGrid']);
-                HookRegistry::register('editorreviewfilesgridhandler::initfeatures', [$this, 'addActionsToFileGrid']);
-                HookRegistry::register('copyeditfilesgridhandler::initfeatures', [$this, 'addActionsToFileGrid']);
-                HookRegistry::register('productionreadyfilesgridhandler::initfeatures', [$this, 'addActionsToFileGrid']);
                 HookRegistry::register('LoadHandler', array($this, 'callbackLoadHandler'));
                 HookRegistry::register('TemplateManager::fetch', array($this, 'templateFetchCallback'));
 
@@ -68,26 +64,6 @@ class TexturePlugin extends GenericPlugin
         }
         return false;
     }
-    function addActionsToFileGrid()
-    {
-        import('lib.pkp.classes.linkAction.request.AjaxModal');
-        $request = Application::get()->getRequest();
-        $dispatcher = $request->getDispatcher();
-        $request->getRouter()->getHandler()->addAction(
-            new LinkAction(
-                'services_add_file',
-                new AjaxModal(
-                    $dispatcher->url($request, ROUTE_PAGE, null, 'texture', 'createServiceFileForm', null, $request->getUserVars()),
-                    __('plugins.generic.texture.createServiceFile.upload'),
-                    'modals_services_add_file'
-                ),
-                __('plugins.generic.texture.createServiceFile.add_file'),
-                ''
-            )
-        );
-
-    }
-
     /**
      * Get texture editor URL
      * @param $request PKPRequest
@@ -130,7 +106,6 @@ class TexturePlugin extends GenericPlugin
             case 'texture/json':
             case 'texture/save':
             case 'texture/createGalleyForm':
-            case 'texture/createServiceFileForm':
             case 'texture/media':
                 define('HANDLER_CLASS', 'TextureHandler');
                 define('TEXTURE_PLUGIN_NAME', $this->getName());
