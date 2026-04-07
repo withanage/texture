@@ -8,15 +8,29 @@
 	window.addEventListener('load', () => {
 		substance.substanceGlobals.DEBUG_RENDERING = substance.platform.devtools;
 		setTimeout(() => {
-			var props = {
-				storageType: 'remote',
-				storageUrl: document.querySelector('meta[name=jobId').getAttribute('content'),
-				archiveId: '',
-			};
-			var app = OJSTextureEditor.mount(props, window.document.body);
-			setTimeout(() => {
-				window.app = app;
-			}, 500);
+			var storageUrl = document.querySelector('meta[name=jobId').getAttribute('content');
+
+			// Verify the document is accessible before mounting the editor
+			fetch(storageUrl).then(function(response) {
+				if (!response.ok) {
+					document.body.innerHTML = '<div style="padding:2em;color:#c00;font-family:sans-serif;">' +
+						'<h2>Error</h2><p>The XML file could not be loaded. It may have been deleted or moved.</p>' +
+						'<p>HTTP status: ' + response.status + '</p></div>';
+					return;
+				}
+				var props = {
+					storageType: 'remote',
+					storageUrl: storageUrl,
+					archiveId: '',
+				};
+				var app = OJSTextureEditor.mount(props, window.document.body);
+				setTimeout(() => {
+					window.app = app;
+				}, 500);
+			}).catch(function(err) {
+				document.body.innerHTML = '<div style="padding:2em;color:#c00;font-family:sans-serif;">' +
+					'<h2>Error</h2><p>Failed to connect to the server: ' + err.message + '</p></div>';
+			});
 		});
 	});
 

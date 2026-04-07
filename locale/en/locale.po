@@ -86,3 +86,6 @@ msgstr "OJS OAI-PMH Interface"
 
 msgid "plugins.generic.texture.createServiceFile.add_file"
 msgstr "Add external File"
+
+msgid "plugins.generic.texture.error.fileNotFound"
+msgstr "The XML file associated with this submission could not be found on the server."

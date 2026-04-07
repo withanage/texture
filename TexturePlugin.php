@@ -55,7 +55,8 @@ class TexturePlugin extends GenericPlugin
 				$request = Application::get()->getRequest();
 				$templateMgr = TemplateManager::getManager($request);
 
-				$userRoleIds = array_map(fn($role) => $role->getId(), $request->getUser()?->getRoles($request->getContext()?->getId()));
+				$userRoleIds = array_map(fn($role) => $role->getId(),
+						$request->getUser()?->getRoles($request->getContext()?->getId()) ?? []);
 				if (!empty($userRoleIds) && !empty(array_intersect($userRoleIds, TexturePlugin::AUTHORIZED_ROLES))) {
 					$this->addResources($templateMgr, $request);
 				}

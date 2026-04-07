@@ -34,7 +34,7 @@ pkp.registry.storeExtend(
 
 		fileStore.extender.extendFn('getItemActions', (itemActions, args) => {
 			const localizedName = localize(args.file.name);
-			if (localizedName.endsWith('.xml') && localizedName === DAR_MANUSCRIPT_FILE) {
+			if (localizedName.endsWith('.xml')) {
 				const actions = [
 					{
 						label: t('plugins.generic.texture.links.editWithTexture'),

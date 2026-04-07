@@ -143,6 +143,9 @@ class TextureHandler extends Handler
 		}
 
 		if ($_SERVER["REQUEST_METHOD"] === "GET") {
+			if (!Services::get('file')->fs->fileExists($submissionFile->getData('path'))) {
+				return response(__('plugins.generic.texture.error.fileNotFound'), Response::HTTP_NOT_FOUND);
+			}
 			$mediaBlob = $dar->createDarJson($dar, $request, $submissionFile);
 			header('Content-Type: application/json');
 			return json_encode($mediaBlob, JSON_UNESCAPED_SLASHES);
@@ -234,6 +237,9 @@ class TextureHandler extends Handler
 		$modifiedDocument->loadXML($modifiedData);
 		$xpath = new DOMXpath($modifiedDocument);
 
+		if (!Services::get('file')->fs->fileExists($submissionFile->getData('path'))) {
+			return 0;
+		}
 		$manuscriptXml = Services::get('file')->fs->read($submissionFile->getData('path'));
 		$origDocument = new DOMDocument('1.0', 'utf-8');
 		$modifiedData = XMLAmpersandEscaper::escapeAmpersands($modifiedData);
